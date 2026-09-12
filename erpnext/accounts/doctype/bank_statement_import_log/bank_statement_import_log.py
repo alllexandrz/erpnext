@@ -1062,12 +1062,58 @@ def render_pdf_pages(
 	return images
 
 
+def _normalize_amount_separators(amount: str) -> str:
+	"""Rewrite localized amount text so ``float()`` can parse it.
+
+	Bank statements use either ``.`` or ``,`` as the decimal mark. Commas must
+	not always be stripped as thousands separators — European amounts like
+	``9,00`` / ``1.234,56`` would otherwise become ``900`` / ``1.23456``.
+
+	Rules:
+	- Both ``.`` and ``,`` present → the last one is the decimal mark
+	- Only ``,`` → decimal if a single comma is followed by 1–2 digits; else thousands
+	- Multiple ``.`` → last group of 1–2 digits is decimal; else dots are thousands
+	"""
+	# Spaces (incl. NBSP) are thousands separators in many European statements
+	amount = amount.replace("\u00a0", "").replace(" ", "")
+
+	has_comma = "," in amount
+	has_dot = "." in amount
+
+	if has_comma and has_dot:
+		if amount.rfind(",") > amount.rfind("."):
+			# 1.234,56 → 1234.56
+			amount = amount.replace(".", "").replace(",", ".")
+		else:
+			# 1,234.56 / 1,00,000.50 → 1234.56 / 100000.50
+			amount = amount.replace(",", "")
+	elif has_comma:
+		parts = amount.split(",")
+		if len(parts) == 2 and 1 <= len(parts[1]) <= 2 and parts[1].isdigit():
+			# 9,00 / -583,28 → 9.00 / -583.28
+			amount = parts[0] + "." + parts[1]
+		else:
+			# 1,000 / 1,00,000 → 1000 / 100000
+			amount = amount.replace(",", "")
+	elif has_dot and amount.count(".") > 1:
+		parts = amount.split(".")
+		if 1 <= len(parts[-1]) <= 2 and parts[-1].isdigit():
+			# 1.234.56 → 1234.56
+			amount = "".join(parts[:-1]) + "." + parts[-1]
+		else:
+			# 1.234.567 → 1234567
+			amount = "".join(parts)
+
+	return amount
+
+
 def get_float_amount(amount):
 	if not amount:
 		return None
 
 	if isinstance(amount, str):
-		amount = amount.lower().replace(",", "").replace(" ", "").replace("cr", "").replace("dr", "")
+		amount = amount.lower().replace("cr", "").replace("dr", "")
+		amount = _normalize_amount_separators(amount)
 		# Remove any other alphabets and currency symbols - do not remove the minus or decimal sign
 		amount = re.sub(r"[^\d.-]", "", amount)
 		try:

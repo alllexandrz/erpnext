@@ -119,6 +119,18 @@ class TestBankStatementImportLog(ERPNextTestSuite, AccountsTestMixin):
 		self.assertEqual(get_float_amount("100.00 CR"), 100.00)
 		self.assertEqual(get_float_amount("100.00 DR"), 100.00)
 
+		# European decimal comma (e.g. Polish PLN bank statements)
+		self.assertEqual(get_float_amount("9,00"), 9.00)
+		self.assertEqual(get_float_amount("-9,00"), -9.00)
+		self.assertEqual(get_float_amount("-583,28"), -583.28)
+		self.assertEqual(get_float_amount("1.234,56"), 1234.56)
+		self.assertEqual(get_float_amount("-1 234,56"), -1234.56)
+		self.assertEqual(get_float_amount("1.234.56"), 1234.56)
+
+		# Thousands-only commas (US / Indian grouping without a decimal mark)
+		self.assertEqual(get_float_amount("1,000"), 1000.00)
+		self.assertEqual(get_float_amount("1,00,000"), 100000.00)
+
 		# Numbers should be returned as floats
 		self.assertEqual(get_float_amount(100), 100.00)
 
